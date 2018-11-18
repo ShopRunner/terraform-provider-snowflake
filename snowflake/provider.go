@@ -28,7 +28,7 @@ func Provider() terraform.ResourceProvider {
 				Type:        schema.TypeString,
 				Required:    true,
 				DefaultFunc: schema.EnvDefaultFunc("SF_ACCOUNT", nil),
-				Description: "Name of Snowflake Account  string to connect to",
+				Description: "Name of Snowflake Account string to connect to",
 				ValidateFunc: func(v interface{}, k string) (ws []string, errors []error) {
 					value := v.(string)
 					if value == "" {
@@ -53,7 +53,7 @@ func Provider() terraform.ResourceProvider {
 			"password": &schema.Schema{
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "Password to be used to connec to Snowflake Server",
+				Description: "Password to be used to connect to Snowflake Server",
 				DefaultFunc: schema.EnvDefaultFunc("SF_PASSWORD", nil),
 			},
 			"region": &schema.Schema{
@@ -86,7 +86,14 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	// safely re-use the same handle between multiple parallel
 	// operations.
 
-	dataSourceName := fmt.Sprintf("%s:%s@%s.%s", username, password, account, region)
+	var dataSourceName string
+
+	if region == "us-west-2" {
+		dataSourceName = fmt.Sprintf("%s:%s@%s", username, password, account)
+	} else {
+		dataSourceName = fmt.Sprintf("%s:%s@%s.%s", username, password, account, region)
+	}
+
 	db, err := sql.Open("snowflake", dataSourceName)
 
 	ver, err := serverVersion(db)
