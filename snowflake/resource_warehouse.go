@@ -129,8 +129,12 @@ func createWarehouse(d *schema.ResourceData, meta interface{}) error {
 	b := bytes.NewBufferString("CREATE  WAREHOUSE IF NOT EXISTS ")
 	fmt.Fprint(b, whName)
 	fmt.Fprintf(b, " WITH ")
-	for _, attr := range []string{whSizeAttr, whMaxClusterCount, whMinClusterCount, whAutoSuspend, whAutoResume, whInitiallySuspended} {
+	for _, attr := range []string{whMaxClusterCount, whMinClusterCount, whAutoSuspend, whAutoResume, whInitiallySuspended} {
 		fmt.Fprintf(b, " %s=%v ", attr, d.Get(attr))
+	}
+	// Wrap string values in quotes
+	for _, attr := range []string{whSizeAttr, whCommentAttr} {
+		fmt.Fprintf(b, " %s='%v' ", attr, d.Get(attr))
 	}
 
 	sql := b.String()
@@ -147,8 +151,12 @@ func updateWarehouse(d *schema.ResourceData, meta interface{}) error {
 	b := bytes.NewBufferString("ALTER WAREHOUSE IF EXISTS ")
 	fmt.Fprint(b, whName)
 	fmt.Fprintf(b, " SET ")
-	for _, attr := range []string{whSizeAttr, whMaxClusterCount, whMinClusterCount, whAutoSuspend, whAutoResume} {
+	for _, attr := range []string{whMaxClusterCount, whMinClusterCount, whAutoSuspend, whAutoResume} {
 		fmt.Fprintf(b, " %s=%v ", attr, d.Get(attr))
+	}
+	// Wrap string values in quotes
+	for _, attr := range []string{whSizeAttr, whCommentAttr} {
+		fmt.Fprintf(b, " %s='%v' ", attr, d.Get(attr))
 	}
 
 	sql := b.String()
@@ -167,15 +175,16 @@ func readWarehouse(d *schema.ResourceData, meta interface{}) error {
 
 	fmt.Printf(" Read Warehouse Executing query: %s \n", stmtSQL)
 	log.Println("Executing query:", stmtSQL)
-	var name, state, instanceType, size, running, queued, isDefault, isCurrent, autoSuspend, autoResume, available sql.NullString
-	var provisioning, quiescing, other, createdOn, resumedOn, updatedOn, owner, comment, resourceMonitor sql.NullString
-	var actives, pendings, failed, suspended, uuid sql.NullString
+	var name, state, instanceType, size, minClusterCount, maxClusterCount, startedClusters, running, queued sql.NullString
+	var isDefault, isCurrent, autoSuspend, autoResume, available, provisioning, quiescing, other sql.NullString
+	var createdOn, resumedOn, updatedOn, owner, comment, resourceMonitor sql.NullString
+	var actives, pendings, failed, suspended, uuid, scalingPolicy sql.NullString
 
 	err := db.QueryRow(stmtSQL).Scan(
-		&name, &state, &instanceType, &size, &running, &queued, &isDefault, &isCurrent,
-		&autoSuspend, &autoResume, &available, &provisioning, &quiescing, &other,
+		&name, &state, &instanceType, &size, &minClusterCount, &maxClusterCount, &startedClusters, &running, &queued,
+		&isDefault, &isCurrent, &autoSuspend, &autoResume, &available, &provisioning, &quiescing, &other,
 		&createdOn, &resumedOn, &updatedOn, &owner, &comment, &resourceMonitor,
-		&actives, &pendings, &failed, &suspended, &uuid,
+		&actives, &pendings, &failed, &suspended, &uuid, &scalingPolicy,
 	)
 	if err != nil {
 		//if mysqlErr, ok := err.(*mysql.MySQLError); ok {
@@ -191,8 +200,12 @@ func readWarehouse(d *schema.ResourceData, meta interface{}) error {
 	d.Set("state", state)
 	d.Set("instance", instanceType)
 	d.Set(whSizeAttr, size)
+	d.Set("min_cluster_count", minClusterCount)
+	d.Set("max_cluster_count", maxClusterCount)
+	d.Set("started_clusters", startedClusters)
 	d.Set("running", running)
 	d.Set("queued", queued)
+	d.Set("is_default", isDefault)
 	d.Set("is_current", isCurrent)
 	d.Set("auto_suspend", autoSuspend)
 	d.Set("auto_resume", autoResume)
@@ -209,7 +222,9 @@ func readWarehouse(d *schema.ResourceData, meta interface{}) error {
 	d.Set("actives", actives)
 	d.Set("pendings", pendings)
 	d.Set("failed", failed)
+	d.Set("suspended", suspended)
 	d.Set("id", uuid)
+	d.Set("scaling_policy", scalingPolicy)
 	return nil
 }
 
