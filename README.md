@@ -53,8 +53,19 @@ $ $GOPATH/bin/terraform-provider-$PROVIDER_NAME
 
 ### Snowflake Warehouse Management
 ```
-resource "snowflake_warehouse" "shoprunner_warehouse_terraform" {
-      name              =   "shoprunner_terraform"
+resource "snowflake_warehouse" "warehouse_terraform" {
+      name              =   "dev_wh"
       warehouse_size    =   "SMALL"
+      auto_resume       =   false
+      auto_suspend      =   600
+      comment           =   "terraform development warehouse"
+}
+```
+
+### Snowflake Database Management
+```
+resource "snowflake_database" "database_terraform" {
+      name              =   "dev_db"
+      comment           =   "terraform development database"
 }
 ```
