@@ -1,177 +1,114 @@
 package snowflake
 
 import (
+	"bytes"
 	"database/sql"
 	"fmt"
 	"log"
-	"strings"
 
+	"github.com/hashicorp/errwrap"
 	"github.com/hashicorp/terraform/helper/schema"
 )
 
-const defaultCharacterSetKeyword = "CHARACTER SET "
-const defaultCollateKeyword = "COLLATE "
 const unknownDatabaseErrCode = 1049
+const (
+	dbNameAttr    = "name"
+	dbCommentAttr = "comment"
+)
 
 func resourceDatabase() *schema.Resource {
 	return &schema.Resource{
-		Create: CreateDatabase,
-		Update: UpdateDatabase,
-		Read:   ReadDatabase,
-		Delete: DeleteDatabase,
+		Create: createDatabase,
+		Update: updateDatabase,
+		Read:   readDatabase,
+		Delete: deleteDatabase,
 
 		Schema: map[string]*schema.Schema{
-			"name": &schema.Schema{
-				Type:     schema.TypeString,
-				Required: true,
-				ForceNew: true,
+			dbNameAttr: {
+				Type:        schema.TypeString,
+				Required:    true,
+				ForceNew:    false,
+				Description: "Identifier for the Snowflake database ",
 			},
-
-			"default_character_set": &schema.Schema{
-				Type:     schema.TypeString,
-				Optional: true,
-				Default:  "utf8",
-			},
-
-			"default_collation": &schema.Schema{
-				Type:     schema.TypeString,
-				Optional: true,
-				Default:  "utf8_general_ci",
+			dbCommentAttr: {
+				Type:        schema.TypeString,
+				Optional:    true,
+				Default:     "",
+				ForceNew:    false,
+				Description: "Specifies a comment for the database.",
 			},
 		},
 	}
 }
 
-func CreateDatabase(d *schema.ResourceData, meta interface{}) error {
+func createDatabase(d *schema.ResourceData, meta interface{}) error {
+	dbName := d.Get(whNameAttr).(string)
 	db := meta.(*providerConfiguration).DB
-
-	stmtSQL := databaseConfigSQL("CREATE", d)
-	fmt.Printf("Executing statement: %s \n", stmtSQL)
-	log.Println("Executing statement:", stmtSQL)
-
-	_, err := db.Exec(stmtSQL)
-	if err != nil {
-		return err
+	b := bytes.NewBufferString("CREATE  DATABASE IF NOT EXISTS ")
+	fmt.Fprint(b, dbName)
+	fmt.Fprintf(b, " ")
+	// Wrap string values in quotes
+	for _, attr := range []string{whCommentAttr} {
+		fmt.Fprintf(b, " %s='%v' ", attr, d.Get(attr))
 	}
 
-	d.SetId(d.Get("name").(string))
-
-	return nil
+	sql := b.String()
+	if _, err := db.Exec(sql); err != nil {
+		return errwrap.Wrapf(fmt.Sprintf("Error creating database sql(%s) \n %q: {{err}}", sql, dbName), err)
+	}
+	d.SetId(dbName)
+	return readDatabase(d, meta)
 }
 
-func UpdateDatabase(d *schema.ResourceData, meta interface{}) error {
+func updateDatabase(d *schema.ResourceData, meta interface{}) error {
+	dbName := d.Get(whNameAttr).(string)
 	db := meta.(*providerConfiguration).DB
-
-	stmtSQL := databaseConfigSQL("ALTER", d)
-	log.Println("Executing statement:", stmtSQL)
-
-	_, err := db.Exec(stmtSQL)
-	if err != nil {
-		return err
+	b := bytes.NewBufferString("ALTER DATABASE IF EXISTS ")
+	fmt.Fprint(b, dbName)
+	fmt.Fprintf(b, " SET ")
+	// Wrap string values in quotes
+	for _, attr := range []string{dbCommentAttr} {
+		fmt.Fprintf(b, " %s='%v' ", attr, d.Get(attr))
 	}
 
-	return nil
+	sql := b.String()
+	if _, err := db.Exec(sql); err != nil {
+		return errwrap.Wrapf(fmt.Sprintf("Error altering database %q: {{err}}", dbName), err)
+	}
+	d.SetId(dbName)
+	return readDatabase(d, meta)
 }
 
-func ReadDatabase(d *schema.ResourceData, meta interface{}) error {
+func readDatabase(d *schema.ResourceData, meta interface{}) error {
 	db := meta.(*providerConfiguration).DB
 
-	// This is kinda flimsy-feeling, since it depends on the formatting
-	// of the SHOW CREATE DATABASE output... but this data doesn't seem
-	// to be available any other way, so hopefully MySQL keeps this
-	// compatible in future releases.
-
-	name := d.Id()
-	stmtSQL := "SHOW CREATE DATABASE " + quoteIdentifier(name)
+	databaseName := d.Id()
+	stmtSQL := fmt.Sprintf("show databases like '%s'", databaseName)
 
 	fmt.Printf(" Read Database Executing query: %s \n", stmtSQL)
 	log.Println("Executing query:", stmtSQL)
-	var createSQL, _database string
-	err := db.QueryRow(stmtSQL).Scan(&_database, &createSQL)
+
+	var createdOn, name, isDefault, isCurrent, origin, owner, comment, options, retentionTime sql.NullString
+
+	err := db.QueryRow(stmtSQL).Scan(
+		&createdOn, &name, &isDefault, &isCurrent, &origin, &owner, &comment, &options, &retentionTime,
+	)
+
 	if err != nil {
-		//if mysqlErr, ok := err.(*mysql.MySQLError); ok {
-		//	if mysqlErr.Number == unknownDatabaseErrCode {
-		//		d.SetId("")
-		//		return nil
-		//	}
-		//}
-		return fmt.Errorf("Error during show create database: %s", err)
+		return fmt.Errorf("Error during show databases like: %s", err)
 	}
 
-	defaultCharset := extractIdentAfter(createSQL, defaultCharacterSetKeyword)
-	defaultCollation := extractIdentAfter(createSQL, defaultCollateKeyword)
-
-	if defaultCollation == "" && defaultCharset != "" {
-		// MySQL doesn't return the collation if it's the default one for
-		// the charset, so if we don't have a collation we need to go
-		// hunt for the default.
-		stmtSQL := "SHOW COLLATION WHERE `Charset` = ? AND `Default` = 'Yes'"
-		var defaultCollation string
-		var empty interface{}
-		err := db.QueryRow(stmtSQL, defaultCharset).Scan(&defaultCollation, &empty, &empty, &empty, &empty, &empty)
-		if err != nil {
-			if err == sql.ErrNoRows {
-				return fmt.Errorf("Charset %s has no default collation", defaultCharset)
-			}
-			return fmt.Errorf("Error getting default charset: %s, %s", err, defaultCharset)
-		}
-		return err
-	}
-
-	d.Set("default_character_set", defaultCharset)
-	d.Set("default_collation", defaultCollation)
-
+	d.Set(dbNameAttr, name)
+	d.Set(dbCommentAttr, comment)
 	return nil
 }
 
-func DeleteDatabase(d *schema.ResourceData, meta interface{}) error {
+func deleteDatabase(d *schema.ResourceData, meta interface{}) error {
 	db := meta.(*providerConfiguration).DB
-
-	name := d.Id()
-	stmtSQL := "DROP DATABASE " + quoteIdentifier(name)
-	fmt.Printf(" Delete Database %s \n", stmtSQL)
-	log.Println("Executing statement:", stmtSQL)
-
-	_, err := db.Exec(stmtSQL)
-	if err == nil {
-		d.SetId("")
+	dbName := d.Get(whNameAttr).(string)
+	sql := fmt.Sprintf("DROP DATABASE  %s ", dbName)
+	if _, err := db.Exec(sql); err != nil {
+		return errwrap.Wrapf(fmt.Sprintf("Error dropping database %q: {{err}}", dbName), err)
 	}
-	return err
-}
-
-func databaseConfigSQL(verb string, d *schema.ResourceData) string {
-	name := d.Get("name").(string)
-	defaultCharset := d.Get("default_character_set").(string)
-	defaultCollation := d.Get("default_collation").(string)
-
-	var defaultCharsetClause string
-	var defaultCollationClause string
-
-	if defaultCharset != "" {
-		defaultCharsetClause = defaultCharacterSetKeyword + quoteIdentifier(defaultCharset)
-	}
-	if defaultCollation != "" {
-		defaultCollationClause = defaultCollateKeyword + quoteIdentifier(defaultCollation)
-	}
-	s := fmt.Sprintf(
-		"%s DATABASE %s %s %s",
-		verb,
-		quoteIdentifier(name),
-		defaultCharsetClause,
-		defaultCollationClause,
-	)
-	fmt.Printf(" DataConfig SQL %s \n ", s)
-	return s
-}
-
-func extractIdentAfter(sql string, keyword string) string {
-	charsetIndex := strings.Index(sql, keyword)
-	if charsetIndex != -1 {
-		charsetIndex += len(keyword)
-		remain := sql[charsetIndex:]
-		spaceIndex := strings.IndexRune(remain, ' ')
-		return remain[:spaceIndex]
-	}
-
-	return ""
+	return nil
 }
