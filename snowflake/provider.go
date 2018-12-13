@@ -67,7 +67,7 @@ func Provider() terraform.ResourceProvider {
 		ResourcesMap: map[string]*schema.Resource{
 			"snowflake_warehouse": resourceWarehouse(),
 			"snowflake_database":  resourceDatabase(),
-			//"snowflake_user":      resourceUser(),
+			"snowflake_user":      resourceUser(),
 			//"snowflake_grant":     resourceGrant(),
 		},
 
