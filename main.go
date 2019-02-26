@@ -1,8 +1,8 @@
 package main
 
 import (
+	"github.com/ShopRunner/terraform-provider-snowflake/snowflake"
 	"github.com/hashicorp/terraform/plugin"
-	"github.com/sadhasivam/terraform-provider-snowflake/snowflake"
 )
 
 func main() {
