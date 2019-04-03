@@ -12,8 +12,8 @@ import (
 	"github.com/hashicorp/terraform/terraform"
 )
 
-// DefaultSnowFlakeRegion mentions SnowFlake AWS Account Region
-const DefaultSnowFlakeRegion = "us-east-1"
+// DefaultSnowFlakeRegion mentions SnowFlake Account Region
+const DefaultSnowFlakeRegion = "us-west-2"
 
 type providerConfiguration struct {
 	DB            *sql.DB
@@ -53,13 +53,13 @@ func Provider() terraform.ResourceProvider {
 			"password": &schema.Schema{
 				Type:        schema.TypeString,
 				Required:    true,
-				Description: "Password to be used to connect to Snowflake Server",
+				Description: "Password to be used to connect to Snowflake",
 				DefaultFunc: schema.EnvDefaultFunc("SF_PASSWORD", nil),
 			},
 			"region": &schema.Schema{
 				Type:        schema.TypeString,
 				Optional:    true,
-				Description: "Snowflake AWS region that is configured with account",
+				Description: "Snowflake region that is configured with account",
 				DefaultFunc: schema.EnvDefaultFunc("SF_REGION", DefaultSnowFlakeRegion),
 			},
 		},
@@ -68,7 +68,7 @@ func Provider() terraform.ResourceProvider {
 			"snowflake_warehouse": resourceWarehouse(),
 			"snowflake_database":  resourceDatabase(),
 			"snowflake_user":      resourceUser(),
-			//"snowflake_grant":     resourceGrant(),
+			// "snowflake_grant":     resourceGrant(),
 		},
 
 		ConfigureFunc: providerConfigure,
@@ -88,11 +88,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 
 	var dataSourceName string
 
-	if region == "us-west-2" {
-		dataSourceName = fmt.Sprintf("%s:%s@%s", username, password, account)
-	} else {
-		dataSourceName = fmt.Sprintf("%s:%s@%s.%s", username, password, account, region)
-	}
+	dataSourceName = fmt.Sprintf("%s:%s@%s.%s", username, password, account, region)
 
 	db, err := sql.Open("snowflake", dataSourceName)
 
@@ -114,12 +110,12 @@ func quoteIdentifier(in string) string {
 }
 
 func serverVersion(db *sql.DB) (*version.Version, error) {
-	rows, err := db.Query("SELECT  CURRENT_VERSION()")
+	rows, err := db.Query("SELECT CURRENT_VERSION()")
 	if err != nil {
 		return nil, err
 	}
 	if !rows.Next() {
-		return nil, fmt.Errorf("SELECT  CURRENT_VERSION() returned an empty set")
+		return nil, fmt.Errorf("SELECT CURRENT_VERSION() returned an empty set")
 	}
 
 	var versionString string
