@@ -57,11 +57,14 @@ Provider Configuration
 
 Firstly, to use the provider you will need to create a user within Snowflake that can execute the resource requests made by Terraform
 
+Account type defaults to standard, but can be either standard or enterprise.
+
 ```sh
 $ export SF_USER
 $ export SF_PASSWORD
 $ export SF_REGION
 $ export SF_ACCOUNT
+$ export SF_ACCOUNT_TYPE
 ```
 
 ### Snowflake Warehouse Management
