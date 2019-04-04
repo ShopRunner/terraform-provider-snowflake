@@ -15,9 +15,13 @@ import (
 // DefaultSnowFlakeRegion mentions SnowFlake Account Region
 const DefaultSnowFlakeRegion = "us-west-2"
 
+// DefaultAccountType is the account type for the Snowflake Account ("standard" or "enterprise")
+const DefaultAccountType = "standard"
+
 type providerConfiguration struct {
 	DB            *sql.DB
 	ServerVersion *version.Version
+	AccountType   string
 }
 
 // Provider blah foo bar
@@ -62,6 +66,12 @@ func Provider() terraform.ResourceProvider {
 				Description: "Snowflake region that is configured with account",
 				DefaultFunc: schema.EnvDefaultFunc("SF_REGION", DefaultSnowFlakeRegion),
 			},
+			"account_type": &schema.Schema{
+				Type:        schema.TypeString,
+				Optional:    true,
+				Description: "Snowflake account type (standard or enterprise)",
+				DefaultFunc: schema.EnvDefaultFunc("SF_ACCOUNT_TYPE", DefaultAccountType),
+			},
 		},
 
 		ResourcesMap: map[string]*schema.Resource{
@@ -81,6 +91,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	var password = d.Get("password").(string)
 	var account = d.Get("account").(string)
 	var region = d.Get("region").(string)
+	var accountType = d.Get("account_type").(string)
 
 	// database/sql is the thread-safe by default, so we can
 	// safely re-use the same handle between multiple parallel
@@ -100,6 +111,7 @@ func providerConfigure(d *schema.ResourceData) (interface{}, error) {
 	return &providerConfiguration{
 		DB:            db,
 		ServerVersion: ver,
+		AccountType:   accountType,
 	}, nil
 }
 

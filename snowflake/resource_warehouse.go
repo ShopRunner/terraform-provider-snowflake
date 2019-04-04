@@ -92,7 +92,7 @@ func resourceWarehouse() *schema.Resource {
 				Optional:    true,
 				Default:     1,
 				ForceNew:    false,
-				Description: "Specifies the maximum number of server clusters for the warehouse",
+				Description: "Specifies the maximum number of server clusters for a multi-cluster warehouse",
 			},
 			whMinClusterCount: {
 				Type:        schema.TypeInt,
@@ -145,7 +145,7 @@ func createWarehouse(d *schema.ResourceData, meta interface{}) error {
 			fmt.Fprintf(b, " %s=%v ", attr, d.Get(attr))
 		}
 	}
-	for _, attr := range []string{whMaxClusterCount, whMinClusterCount, whAutoSuspend, whAutoResume, whInitiallySuspended} {
+	for _, attr := range []string{whAutoSuspend, whAutoResume, whInitiallySuspended} {
 		fmt.Fprintf(b, " %s=%v ", attr, d.Get(attr))
 	}
 	// Wrap string values in quotes
@@ -203,8 +203,7 @@ func readWarehouse(d *schema.ResourceData, meta interface{}) error {
 
 	var err error
 
-	// figure out a better way to do this, we should be able to construct a group of parameters that are enterprise vs non-enterprise
-	if d.Get(whMulticlusterEnabled) == true {
+	if meta.(*providerConfiguration).AccountType == "enterprise" {
 		err = db.QueryRow(stmtSQL).Scan(
 			&name, &state, &instanceType, &size, &minClusterCount, &maxClusterCount, &startedClusters, &scalingPolicy, &running, &queued,
 			&isDefault, &isCurrent, &autoSuspend, &autoResume, &available, &provisioning, &quiescing, &other,
@@ -249,7 +248,7 @@ func readWarehouse(d *schema.ResourceData, meta interface{}) error {
 	d.Set("failed", failed)
 	d.Set("suspended", suspended)
 	d.Set("id", uuid)
-	if d.Get(whMulticlusterEnabled) == true {
+	if meta.(*providerConfiguration).AccountType == "enterprise" {
 		d.Set("min_cluster_count", minClusterCount)
 		d.Set("max_cluster_count", maxClusterCount)
 		d.Set("started_clusters", startedClusters)
