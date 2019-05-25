@@ -83,8 +83,8 @@ resource "snowflake_warehouse" "warehouse_terraform" {
 | `statement_queued_timeout_in_seconds` | Time, in seconds, an SQL statement can be queued before being cancelled | String | FALSE |
 | `statement_timeout_in_seconds` | Time, in seconds, after which an SQL statement will be terminated | String | FALSE |
 | `warehouse_size` | Size of the warehouse | String | FALSE |
-| `max_cluster_count` | Min number of warehouses | String | FALSE |
-| `min_cluster_count` | Max number of warehouses | String | FALSE |
+| `max_cluster_count` | Max number of warehouses | String | FALSE |
+| `min_cluster_count` | Min number of warehouses | String | FALSE |
 | `auto_resume` | Should warehouse should auto resume | Boolean | FALSE |
 | `auto_suspend` | Should warehouse should auto suspend | Boolean | FALSE |
 | `initially_suspended` | Should warehouse start off suspended  | Boolean | FALSE |
