@@ -145,7 +145,7 @@ func createWarehouse(d *schema.ResourceData, meta interface{}) error {
 			fmt.Fprintf(b, " %s=%v ", attr, d.Get(attr))
 		}
 	}
-	for _, attr := range []string{whMaxClusterCount, whMinClusterCount, whAutoSuspend, whAutoResume, whInitiallySuspended} {
+	for _, attr := range []string{whAutoSuspend, whAutoResume, whInitiallySuspended} {
 		fmt.Fprintf(b, " %s=%v ", attr, d.Get(attr))
 	}
 	// Wrap string values in quotes
